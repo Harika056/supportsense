@@ -1,0 +1,32 @@
+# UNTESTED by the author (Docker was unavailable). Needs ./artifacts/model from training.
+services:
+  kafka:
+    image: apache/kafka:3.8.0
+    ports: ["9092:9092"]
+  service:
+    build: .
+    environment:
+      MODEL_BACKEND: transformers
+      MODEL_DIR: /models/model
+    volumes: ["./artifacts:/models"]
+    ports: ["8000:8000"]
+  dashboard:
+    build: .
+    command: ["uvicorn", "dashboard.app:create_app", "--factory", "--host", "0.0.0.0", "--port", "8001"]
+    ports: ["8001:8001"]
+  consumer:
+    build: .
+    command: ["python", "-m", "streaming.consumer"]
+    environment:
+      KAFKA_BOOTSTRAP: kafka:9092
+      DASHBOARD_URL: http://dashboard:8001
+      MODEL_BACKEND: transformers
+      MODEL_DIR: /models/model
+    volumes: ["./artifacts:/models"]
+    depends_on: [kafka, dashboard]
+  producer:
+    build: .
+    command: ["python", "-m", "streaming.producer", "--rate", "5"]
+    environment:
+      KAFKA_BOOTSTRAP: kafka:9092
+    depends_on: [kafka]

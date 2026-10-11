@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SupportSense Live</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --ink:#1c2230; --mute:#667085; --line:#e4e7ec; --acc:#3b5bdb; --urg:#d92d20; --urgbg:#fef3f2; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#12151c; --card:#1b2030; --ink:#e8ebf2; --mute:#98a2b3; --line:#2a3145; --acc:#7c93ff; --urg:#ff6b60; --urgbg:#3a1d1f; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; font:15px/1.45 system-ui,-apple-system,Segoe UI,sans-serif; background:var(--bg); color:var(--ink); }
+  header { display:flex; align-items:center; justify-content:space-between; padding:16px 20px; }
+  h1 { font-size:18px; margin:0; }
+  .status { font-size:13px; color:var(--mute); }
+  .dot { display:inline-block; width:9px; height:9px; border-radius:50%; background:#f79009; margin-right:6px; }
+  .dot.on { background:#12b76a; }
+  main { display:grid; gap:16px; padding:0 20px 24px; grid-template-columns: 1fr 340px; }
+  @media (max-width: 860px) { main { grid-template-columns: 1fr; } }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px 16px; }
+  .card h2 { margin:0 0 10px; font-size:13px; letter-spacing:.04em; text-transform:uppercase; color:var(--mute); }
+  .kpis { display:grid; grid-template-columns: repeat(3,1fr); gap:12px; margin-bottom:16px; grid-column:1/-1; }
+  .kpi .v { font-size:28px; font-weight:650; }
+  .kpi .l { color:var(--mute); font-size:13px; }
+  #feed { list-style:none; margin:0; padding:0; max-height:62vh; overflow:auto; }
+  #feed li { padding:9px 10px; border-bottom:1px solid var(--line); display:grid; grid-template-columns:auto 1fr auto; gap:10px; align-items:start; }
+  #feed li.urgent { background:var(--urgbg); border-left:3px solid var(--urg); }
+  .tag { font-size:12px; padding:2px 8px; border-radius:999px; border:1px solid var(--line); white-space:nowrap; }
+  .txt { overflow-wrap:anywhere; }
+  .meta { font-size:12px; color:var(--mute); white-space:nowrap; text-align:right; }
+  .urg-b { color:var(--urg); font-weight:600; }
+  .bar { display:grid; grid-template-columns: 120px 1fr 40px; gap:8px; align-items:center; margin:6px 0; font-size:13px; }
+  .track { background:var(--line); border-radius:6px; height:10px; overflow:hidden; }
+  .fill { background:var(--acc); height:100%; width:0; transition:width .25s; }
+  .num { text-align:right; color:var(--mute); }
+  .empty { color:var(--mute); padding:12px 4px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>SupportSense <span style="color:var(--mute);font-weight:400">live triage</span></h1>
+  <div class="status"><span id="dot" class="dot"></span><span id="conn">connecting...</span></div>
+</header>
+<main>
+  <div class="kpis">
+    <div class="card kpi"><div class="v" id="k-total">0</div><div class="l">tickets classified</div></div>
+    <div class="card kpi"><div class="v" id="k-urgent">0</div><div class="l">urgent</div></div>
+    <div class="card kpi"><div class="v" id="k-rate">0.0</div><div class="l">tickets/sec (rolling 10s)</div></div>
+  </div>
+  <section class="card">
+    <h2>Live feed</h2>
+    <ul id="feed"><li class="empty" id="empty">Waiting for tickets. Start the producer/consumer.</li></ul>
+  </section>
+  <aside class="card">
+    <h2>By category</h2>
+    <div id="cats"></div>
+  </aside>
+</main>
+<script>
+const CATS = ["billing","login_access","bug_report","feature_request","shipping_delivery","refund_return","account_settings","general_inquiry"];
+const WINDOW_MS = 10000, MAX_FEED = 100;
+let counts = Object.fromEntries(CATS.map(c => [c,0])), urgent = 0, stamps = [];
+const $ = id => document.getElementById(id);
+
+function renderCats() {
+  const max = Math.max(1, ...Object.values(counts));
+  $("cats").innerHTML = CATS.map(c =>
+    `<div class="bar"><span>${c}</span><div class="track"><div class="fill" style="width:${counts[c]/max*100}%"></div></div><span class="num">${counts[c]}</span></div>`
+  ).join("");
+  $("k-total").textContent = Object.values(counts).reduce((a,b)=>a+b,0);
+  $("k-urgent").textContent = urgent;
+}
+function addRow(t, prepend=true) {
+  const e = $("empty"); if (e) e.remove();
+  const li = document.createElement("li");
+  if (t.urgent) li.className = "urgent";
+  const tag = document.createElement("span"); tag.className = "tag"; tag.textContent = t.label;
+  const txt = document.createElement("span"); txt.className = "txt"; txt.textContent = t.text;   // textContent: no HTML injection
+  const meta = document.createElement("span"); meta.className = "meta";
+  meta.innerHTML = (t.urgent ? '<span class="urg-b">URGENT</span> ' : '') + `u=${t.urgency.toFixed(2)}<br>conf ${t.confidence.toFixed(2)}`;
+  li.append(tag, txt, meta);
+  const feed = $("feed");
+  prepend ? feed.prepend(li) : feed.append(li);
+  while (feed.children.length > MAX_FEED) feed.lastChild.remove();
+}
+function renderRate() {
+  const now = Date.now(); stamps = stamps.filter(s => now - s < WINDOW_MS);
+  $("k-rate").textContent = (stamps.length / (WINDOW_MS/1000)).toFixed(1);
+}
+function connect() {
+  const ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws");
+  ws.onopen = () => { $("conn").textContent = "live"; $("dot").classList.add("on"); };
+  ws.onclose = () => { $("conn").textContent = "reconnecting..."; $("dot").classList.remove("on"); setTimeout(connect, 1500); };
+  ws.onmessage = ev => {
+    const m = JSON.parse(ev.data);
+    if (m.type === "snapshot") {
+      counts = {...counts, ...m.counts}; urgent = m.urgent; $("feed").innerHTML = "";
+      m.recent.forEach(t => addRow(t, true));
+      if (!m.recent.length) $("feed").innerHTML = '<li class="empty" id="empty">Waiting for tickets.</li>';
+    } else if (m.type === "ticket") {
+      counts = {...counts, ...m.counts}; urgent = m.urgent; stamps.push(Date.now()); addRow(m.ticket);
+    }
+    renderCats();
+  };
+}
+renderCats(); setInterval(renderRate, 500); connect();
+</script>
+</body>
+</html>

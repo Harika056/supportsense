@@ -1,0 +1,7 @@
+.venv
+__pycache__
+.pytest_cache
+.coverage
+.git
+tests
+data/*.csv

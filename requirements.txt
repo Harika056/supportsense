@@ -1,0 +1,10 @@
+# Runtime (service, dashboard, streaming). Model backends: keyword needs nothing extra;
+# the transformers backend needs requirements-train.txt (torch + transformers).
+fastapi>=0.115
+uvicorn[standard]>=0.30
+pydantic>=2.7
+prometheus-client>=0.20
+httpx>=0.27
+aiokafka>=0.11
+websockets>=12.0
+numpy>=1.26
