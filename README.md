@@ -50,7 +50,7 @@ Endpoints: `POST /classify`, `POST /classify/batch`, `GET /health`, `GET /metric
 ## Results (fill only from your own runs)
 | Metric | Value | Notes |
 |---|---|---|
-| Tests passing | | `pytest` |
+| Tests passing | | `56 passed, 1 skipped` |
 | Accuracy / macro-F1 (real data) | | `artifacts/metrics.json`, real dataset only |
 | Throughput, no batching | | `scripts.benchmark` |
 | Throughput, micro-batching | | `scripts.benchmark` |
